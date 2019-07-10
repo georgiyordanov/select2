@@ -104,6 +104,8 @@ the specific language governing permissions and limitations under the Apache Lic
 
     var supportsTouchEvents = (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0));
 
+    var isPhone =  window.matchMedia('(max-width: 767px)').matches;
+
     nextUid=(function() { var counter=1; return function() { return counter++; }; }());
 
 
@@ -1472,6 +1474,10 @@ the specific language governing permissions and limitations under the Apache Lic
                 dropLeft = offset.left + this.container.outerWidth(false) - dropWidth;
             }
 
+            if (this.container.css('position') === 'fixed') {
+                dropTop = this.container.position().top + height;
+            }
+
             css =  {
                 left: dropLeft,
                 width: width
@@ -1493,6 +1499,8 @@ the specific language governing permissions and limitations under the Apache Lic
             css = $.extend(css, evaluate(this.opts.dropdownCss, this.opts.element));
 
             $dropdown.css(css);
+
+            $dropdown.addClass("select2-drop-open");
         },
 
         // abstract
@@ -1513,6 +1521,7 @@ the specific language governing permissions and limitations under the Apache Lic
             // clear the classes used to figure out the preference of where the dropdown should be opened
             this.container.removeClass("select2-drop-above");
             this.dropdown.removeClass("select2-drop-above");
+            this.dropdown.removeClass("select2-drop-open");
         },
 
         /**
@@ -1598,6 +1607,10 @@ the specific language governing permissions and limitations under the Apache Lic
 
             this.dropdown.addClass("select2-drop-active");
 
+            if (isPhone) {
+                bodyScrollLock.disableBodyScroll($('.select2-results', this.dropdown)[0]);
+            }
+
             // attach listeners to events that can change the position of the container and thus require
             // the position of the dropdown to be updated as well so it does not come unglued from the container
             var that = this;
@@ -1623,6 +1636,10 @@ the specific language governing permissions and limitations under the Apache Lic
         close: function () {
             if (!this.opened()) return;
 
+            if (isPhone) {
+                bodyScrollLock.enableBodyScroll($('.select2-results', this.dropdown)[0]);
+            }
+  
             var cid = this.containerEventName,
                 scroll = "scroll." + cid,
                 resize = "resize."+cid,
