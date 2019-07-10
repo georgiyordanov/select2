@@ -102,6 +102,8 @@ the specific language governing permissions and limitations under the Apache Lic
 
     $document = $(document);
 
+    var supportsTouchEvents = (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0));
+
     nextUid=(function() { var counter=1; return function() { return counter++; }; }());
 
 
@@ -1561,7 +1563,7 @@ the specific language governing permissions and limitations under the Apache Lic
                 mask.attr("id","select2-drop-mask").attr("class","select2-drop-mask");
                 mask.hide();
                 mask.appendTo(this.body);
-                mask.on("mousedown touchstart click", function (e) {
+                mask.on("mousedown click", function (e) {
                     // Prevent IE from generating a click event on the body
                     reinsertElement(mask);
 
@@ -1605,7 +1607,16 @@ the specific language governing permissions and limitations under the Apache Lic
                 });
             });
 
-
+            if(supportsTouchEvents && /Android.*Chrome\//.test(navigator.userAgent)) {
+                // chrome on android does not blur the input when the virtual keyboard is closed
+                // but resizes the window correctly, so we can listen for the resize event
+                var initialWindowHeight = window.innerHeight;
+                $(window).on(resize, function () {
+                    if (that.opened() && window.innerHeight >= initialWindowHeight) {
+                        that.close();
+                    }
+                });
+            }
         },
 
         // abstract
@@ -1637,6 +1648,10 @@ the specific language governing permissions and limitations under the Apache Lic
             // Remove the aria active descendant for highlighted element
             this.search.removeAttr("aria-activedescendant");
             this.opts.element.trigger($.Event("select2-close"));
+
+            if (supportsTouchEvents) {
+                this.search.blur();
+            }
         },
 
         /**
@@ -2206,10 +2221,12 @@ the specific language governing permissions and limitations under the Apache Lic
             if (!this.opened()) return;
             this.parent.close.apply(this, arguments);
 
-            this.focusser.prop("disabled", false);
+            if (!supportsTouchEvents) {
+                this.focusser.prop("disabled", false);
 
-            if (this.opts.shouldFocusInput(this)) {
-                this.focusser.focus();
+                if (this.opts.shouldFocusInput(this)) {
+                    this.focusser.focus();
+                }
             }
         },
 
@@ -2217,7 +2234,7 @@ the specific language governing permissions and limitations under the Apache Lic
         focus: function () {
             if (this.opened()) {
                 this.close();
-            } else {
+            } else if (!supportsTouchEvents) {
                 this.focusser.prop("disabled", false);
                 if (this.opts.shouldFocusInput(this)) {
                     this.focusser.focus();
@@ -2233,10 +2250,13 @@ the specific language governing permissions and limitations under the Apache Lic
         // single
         cancel: function () {
             this.parent.cancel.apply(this, arguments);
-            this.focusser.prop("disabled", false);
 
-            if (this.opts.shouldFocusInput(this)) {
-                this.focusser.focus();
+            if (!supportsTouchEvents) {
+                this.focusser.prop("disabled", false);
+
+                if (this.opts.shouldFocusInput(this)) {
+                    this.focusser.focus();
+                }
             }
         },
 
@@ -2293,6 +2313,10 @@ the specific language governing permissions and limitations under the Apache Lic
 
             this.focusser.attr("tabindex", this.elementTabIndex);
 
+            if (supportsTouchEvents) {
+                this.focusser.prop("disabled", true).val("");
+            }
+
             // write label for search field using the label from the focusser element
             this.search.attr("id", this.focusser.attr('id') + '_search');
 
@@ -2333,12 +2357,12 @@ the specific language governing permissions and limitations under the Apache Lic
             }));
 
             this.search.on("blur", this.bind(function(e) {
-                // a workaround for chrome to keep the search field focussed when the scroll bar is used to scroll the dropdown.
-                // without this the search field loses focus which is annoying
-                if (document.activeElement === this.body.get(0)) {
+                // close the dropdown when the search field loses focus
+                // this usually happens when the user closes the virtual keyboard
+                if (supportsTouchEvents) {
                     window.setTimeout(this.bind(function() {
-                        if (this.opened() && this.results && this.results.length > 1) {
-                            this.search.focus();
+                        if (this.opened()) {
+                            this.close();
                         }
                     }), 0);
                 }
@@ -2385,7 +2409,7 @@ the specific language governing permissions and limitations under the Apache Lic
                 }
             }));
 
-            selection.on("mousedown touchstart", "abbr", this.bind(function (e) {
+            selection.on("mousedown", "abbr", this.bind(function (e) {
                 if (!this.isInterfaceEnabled()) {
                     return;
                 }
@@ -2399,7 +2423,7 @@ the specific language governing permissions and limitations under the Apache Lic
                 }
             }));
 
-            selection.on("mousedown touchstart", this.bind(function (e) {
+            selection.on("mousedown", this.bind(function (e) {
                 // Prevent IE from generating a click event on the body
                 reinsertElement(selection);
 
@@ -2416,7 +2440,7 @@ the specific language governing permissions and limitations under the Apache Lic
                 killEvent(e);
             }));
 
-            dropdown.on("mousedown touchstart", this.bind(function() {
+            dropdown.on("mousedown", this.bind(function() {
                 if (this.opts.shouldFocusInput(this)) {
                     this.search.focus();
                 }
@@ -2629,7 +2653,7 @@ the specific language governing permissions and limitations under the Apache Lic
             this.lastSearchTerm = this.search.val();
             this.close();
 
-            if ((!options || !options.noFocus) && this.opts.shouldFocusInput(this)) {
+            if ((!options || !options.noFocus) && !supportsTouchEvents && this.opts.shouldFocusInput(this)) {
                 this.focusser.focus();
             }
 
@@ -2966,7 +2990,7 @@ the specific language governing permissions and limitations under the Apache Lic
                         killEvent(e);
                         return;
                     case KEY.ENTER:
-                        this.selectHighlighted();
+                        this.selectHighlighted({noFocus: supportsTouchEvents});
                         killEvent(e);
                         return;
                     case KEY.TAB:
@@ -3017,7 +3041,12 @@ the specific language governing permissions and limitations under the Apache Lic
                 this.container.removeClass("select2-container-active");
                 this.search.removeClass("select2-focused");
                 this.selectChoice(null);
-                if (!this.opened()) this.clearSearch();
+                if (!this.opened()) {
+                    this.clearSearch();
+                } else if (supportsTouchEvents) {
+                  this.selectHighlighted({noFocus:true});
+                  this.close();
+                }
                 e.stopImmediatePropagation();
                 this.opts.element.trigger($.Event("select2-blur"));
             }));
@@ -3270,7 +3299,9 @@ the specific language governing permissions and limitations under the Apache Lic
                   this.selection.find(".select2-search-choice-focus").removeClass("select2-search-choice-focus");
                   killEvent(e);
                   this.close();
-                  this.focusSearch();
+                  if (!supportsTouchEvents) {
+                    this.focusSearch();
+                  }
               })).on("focus", this.bind(function () {
                   if (!this.isInterfaceEnabled()) return;
                   this.container.addClass("select2-container-active");
@@ -3666,10 +3697,6 @@ the specific language governing permissions and limitations under the Apache Lic
         searchInputPlaceholder: '',
         createSearchChoicePosition: 'top',
         shouldFocusInput: function (instance) {
-            // Attempt to detect touch devices
-            var supportsTouchEvents = (('ontouchstart' in window) ||
-                                       (navigator.msMaxTouchPoints > 0));
-
             // Only devices which support touch events should be special cased
             if (!supportsTouchEvents) {
                 return true;
