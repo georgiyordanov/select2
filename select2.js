@@ -36,7 +36,7 @@ the specific language governing permissions and limitations under the Apache Lic
             }
         });
     }
-})(jQuery);
+})(jq3);
 
 (function ($, undefined) {
     "use strict";
@@ -3770,4 +3770,4 @@ the specific language governing permissions and limitations under the Apache Lic
         }
     };
 
-}(jQuery));
+}(jq3));
